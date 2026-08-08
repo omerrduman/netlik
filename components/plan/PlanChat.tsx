@@ -1,11 +1,20 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { TechnicalPlanDocument } from "@/types/plan";
 import { useDocumentChat } from "@/lib/hooks/useDocumentChat";
+import {
+  getPlanHistory,
+  savePlanToHistory,
+  updatePlanInHistory,
+  deletePlanFromHistory,
+  type PlanHistoryEntry,
+} from "@/lib/planHistory";
 import MessageList from "@/components/widget/MessageList";
 import NetlikRing from "@/components/widget/NetlikRing";
 import PlanDocumentView from "./PlanDocumentView";
+import PlanHistoryList from "./PlanHistoryList";
 
 const WELCOME_MESSAGE =
   "Merhaba! Yaptırmak istediğin projeyi anlatır mısın? Birkaç soru sorup senin için sağlam bir teknik plan çıkaracağım.";
@@ -22,6 +31,7 @@ export default function PlanChat() {
     canGenerate,
     sendMessage,
     generateDocument,
+    updateDocument,
   } = useDocumentChat<TechnicalPlanDocument>({
     chatEndpoint: "/api/plan/chat",
     generateEndpoint: "/api/plan/generate",
@@ -29,19 +39,101 @@ export default function PlanChat() {
     welcomeMessage: WELCOME_MESSAGE,
   });
 
+  const [showHistory, setShowHistory] = useState(false);
+  const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<PlanHistoryEntry | null>(
+    null
+  );
+  // Ref kullanıyoruz çünkü bu değer JSX'te hiçbir yerde doğrudan
+  // gösterilmiyor — sadece handleSaveEdit'in en güncel değeri okuması
+  // yeterli, değiştiğinde yeniden render tetiklemesine gerek yok.
+  const liveHistoryIdRef = useRef<string | null>(null);
+  const [historyEntries, setHistoryEntries] = useState<PlanHistoryEntry[]>([]);
+
+  // Canlı üretilen plan geçmişe sadece bir kez, ilk üretildiğinde kaydedilir.
+  // liveHistoryIdRef zaten set edilmişse (örn. düzenleme sonrası
+  // updateDocument yeniden bir belge nesnesi verdiği için) tekrar
+  // kaydetmiyoruz — aksi halde her düzenlemede yinelenen bir geçmiş kaydı
+  // oluşurdu.
+  useEffect(() => {
+    if (planDocument && liveHistoryIdRef.current === null) {
+      const entry = savePlanToHistory(planDocument);
+      liveHistoryIdRef.current = entry.id;
+    }
+  }, [planDocument]);
+
+  function openHistory() {
+    setHistoryEntries(getPlanHistory());
+    setSelectedHistoryEntry(null);
+    setShowHistory(true);
+  }
+
+  function closeHistory() {
+    setShowHistory(false);
+  }
+
+  function selectHistoryEntry(entry: PlanHistoryEntry) {
+    setSelectedHistoryEntry(entry);
+    setShowHistory(false);
+  }
+
+  function deleteHistoryEntry(id: string) {
+    deletePlanFromHistory(id);
+    setHistoryEntries((prev) => prev.filter((entry) => entry.id !== id));
+  }
+
+  function handleSaveEdit(editedDoc: TechnicalPlanDocument) {
+    const targetId = selectedHistoryEntry?.id ?? liveHistoryIdRef.current;
+    if (targetId) {
+      updatePlanInHistory(targetId, editedDoc);
+    }
+    if (selectedHistoryEntry) {
+      setSelectedHistoryEntry({ ...selectedHistoryEntry, document: editedDoc });
+    } else {
+      updateDocument(editedDoc);
+    }
+  }
+
   return (
     <div className="flex h-full w-full flex-1 flex-col">
-      <header className="flex items-center gap-2 border-b border-border px-6 py-4">
+      <header className="flex items-center justify-between gap-2 border-b border-border px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
           <NetlikRing size={26} />
           <span className="font-medium text-foreground">Netlik Proje Planlayıcı</span>
         </Link>
+        <button
+          onClick={openHistory}
+          className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:text-foreground"
+        >
+          Geçmiş Planlarım
+        </button>
       </header>
 
-      {planDocument ? (
+      {showHistory ? (
+        <PlanHistoryList
+          entries={historyEntries}
+          onSelect={selectHistoryEntry}
+          onDelete={deleteHistoryEntry}
+          onClose={closeHistory}
+        />
+      ) : selectedHistoryEntry ? (
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-3xl p-6">
-            <PlanDocumentView document={planDocument} />
+            <button
+              onClick={() => setSelectedHistoryEntry(null)}
+              className="mb-4 rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:text-foreground"
+            >
+              Geri
+            </button>
+            <PlanDocumentView
+              document={selectedHistoryEntry.document}
+              onSave={handleSaveEdit}
+            />
+          </div>
+        </div>
+      ) : planDocument ? (
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl p-6">
+            <PlanDocumentView document={planDocument} onSave={handleSaveEdit} />
           </div>
         </div>
       ) : (

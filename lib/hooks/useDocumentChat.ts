@@ -24,6 +24,8 @@ export interface UseDocumentChatResult<TDoc> {
   canGenerate: boolean;
   sendMessage: () => Promise<void>;
   generateDocument: () => Promise<void>;
+  /** Üretilen belgeyi yerinde günceller (örn. düzenleme sonrası). */
+  updateDocument: (doc: TDoc) => void;
 }
 
 // Sohbet personaları (lib/ai/prompts.ts), yeterince soru sorduklarında son
@@ -134,5 +136,6 @@ export function useDocumentChat<TDoc>({
     canGenerate,
     sendMessage,
     generateDocument,
+    updateDocument: setDocument,
   };
 }
