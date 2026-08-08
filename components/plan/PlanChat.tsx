@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { TechnicalPlanDocument } from "@/types/plan";
 import { useDocumentChat } from "@/lib/hooks/useDocumentChat";
 import MessageList from "@/components/widget/MessageList";
@@ -31,8 +32,10 @@ export default function PlanChat() {
   return (
     <div className="flex h-full w-full flex-1 flex-col">
       <header className="flex items-center gap-2 border-b border-border px-6 py-4">
-        <NetlikRing size={26} />
-        <span className="font-medium text-foreground">Netlik Proje Planlayıcı</span>
+        <Link href="/" className="flex items-center gap-2">
+          <NetlikRing size={26} />
+          <span className="font-medium text-foreground">Netlik Proje Planlayıcı</span>
+        </Link>
       </header>
 
       {planDocument ? (
