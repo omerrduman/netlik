@@ -11,6 +11,8 @@ import {
   deletePlanFromHistory,
   type PlanHistoryEntry,
 } from "@/lib/planHistory";
+import { PLAN_TEMPLATES } from "@/lib/planTemplates";
+import type { UsageToday } from "@/lib/geminiUsage";
 import MessageList from "@/components/widget/MessageList";
 import NetlikRing from "@/components/widget/NetlikRing";
 import PlanDocumentView from "./PlanDocumentView";
@@ -48,6 +50,8 @@ export default function PlanChat() {
   // yeterli, değiştiğinde yeniden render tetiklemesine gerek yok.
   const liveHistoryIdRef = useRef<string | null>(null);
   const [historyEntries, setHistoryEntries] = useState<PlanHistoryEntry[]>([]);
+  const [usage, setUsage] = useState<UsageToday | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Canlı üretilen plan geçmişe sadece bir kez, ilk üretildiğinde kaydedilir.
   // liveHistoryIdRef zaten set edilmişse (örn. düzenleme sonrası
@@ -59,6 +63,14 @@ export default function PlanChat() {
       const entry = savePlanToHistory(planDocument);
       liveHistoryIdRef.current = entry.id;
     }
+  }, [planDocument]);
+
+  // Sayfa açılışında ve her plan üretiminden sonra kalan günlük hakkı tazele.
+  useEffect(() => {
+    fetch("/api/plan/usage")
+      .then((res) => res.json())
+      .then(setUsage)
+      .catch(() => {});
   }, [planDocument]);
 
   function openHistory() {
@@ -93,19 +105,31 @@ export default function PlanChat() {
     }
   }
 
+  function applyTemplate(seedMessage: string) {
+    setInput(seedMessage);
+    inputRef.current?.focus();
+  }
+
   return (
     <div className="flex h-full w-full flex-1 flex-col">
-      <header className="flex items-center justify-between gap-2 border-b border-border px-6 py-4">
+      <header className="flex items-center justify-between gap-3 border-b border-border px-6 py-4">
         <Link href="/" className="flex items-center gap-2">
           <NetlikRing size={26} />
           <span className="font-medium text-foreground">Netlik Proje Planlayıcı</span>
         </Link>
-        <button
-          onClick={openHistory}
-          className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:text-foreground"
-        >
-          Geçmiş Planlarım
-        </button>
+        <div className="flex items-center gap-3">
+          {usage && (
+            <span className="text-xs text-muted">
+              Bugün kalan plan hakkı: {usage.remainingPlans}/{usage.budget}
+            </span>
+          )}
+          <button
+            onClick={openHistory}
+            className="rounded-lg border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:text-foreground"
+          >
+            Geçmiş Planlarım
+          </button>
+        </div>
       </header>
 
       {showHistory ? (
@@ -144,6 +168,20 @@ export default function PlanChat() {
             className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-3 overflow-y-auto p-6"
           />
 
+          {messages.length === 1 && (
+            <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2 px-6 pb-2">
+              {PLAN_TEMPLATES.map((template) => (
+                <button
+                  key={template.label}
+                  onClick={() => applyTemplate(template.seedMessage)}
+                  className="rounded-full border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent-cyan/40 hover:text-accent-cyan"
+                >
+                  {template.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {error && (
             <div className="mx-auto w-full max-w-3xl px-6 pb-2 text-xs text-accent-orange">
               {error}
@@ -171,6 +209,7 @@ export default function PlanChat() {
           >
             <div className="mx-auto flex w-full max-w-3xl items-center gap-2 p-4">
               <input
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Projeni anlat..."

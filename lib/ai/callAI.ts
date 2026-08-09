@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@/types/scope";
 import { generateGeminiReply, type AIMode } from "./gemini";
+import { recordGeminiCall } from "@/lib/geminiUsage";
 
 export interface CallAIOptions {
   /** Sağlayıcıdan ham JSON döndürmesini iste (belge üretiminde kullanılır). */
@@ -33,7 +34,9 @@ export async function callAI(
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await generateGeminiReply(messages, opts);
+      const reply = await generateGeminiReply(messages, opts);
+      recordGeminiCall();
+      return reply;
     } catch (err) {
       lastError = err;
       if (!isRetryable(err) || attempt === MAX_RETRIES) {
